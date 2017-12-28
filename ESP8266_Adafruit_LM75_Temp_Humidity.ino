@@ -17,43 +17,23 @@
 // and any additional configuration needed for WiFi, cellular,
 // or ethernet clients.
 #include "config.h"
-
-/************************ Example Starts Here *******************************/
-#include <Adafruit_Sensor.h>
-#include <DHT.h>
-#include <DHT_U.h>
+#include <U8g2lib.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <LM75A.h>
 
-// pin connected to DH22 data line
-#define DATA_PIN D3
+LM75A lm75a_sensor; // Create I2C LM75A instance
 
-// create DHT22 instance
-DHT_Unified dht(DATA_PIN, DHT22);
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
-Adafruit_SSD1306 display = Adafruit_SSD1306();
-
-#if (SSD1306_LCDHEIGHT != 64)
- #error("Height incorrect, please fix Adafruit_SSD1306.h!");
-#endif
 
 // set up the 'temperature' and 'humidity' feeds
-AdafruitIO_Feed *temperatureF = io.feed("vent-temperatureF");
+AdafruitIO_Feed *temperatureF = io.feed("diningroom-temperatureF");
 float lastSavedTemperature = 0.0;
 
 void setup() {
 
-  // initialize dht22
-  dht.begin();
-
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  
-
-  // Show image buffer on the display hardware.
-  // Since the buffer is intialized with an Adafruit splashscreen
-  // internally, this will display the splashscreen.  display.display();
-  display.display();
-  delay(1000);
+  // initilize display object
+  u8g2.begin();
 
   
   // connect to io.adafruit.com
@@ -64,6 +44,8 @@ void setup() {
     delay(500);
   }
 
+  
+
 }
 
 void loop() {
@@ -72,19 +54,19 @@ void loop() {
   // it should always be present at the top of your loop
   // function. it keeps the client connected to
   // io.adafruit.com, and processes any incoming data.
+  WiFi.hostname("ESP_DiningRoom");
   io.run();
 
-  sensors_event_t event;
-  dht.temperature().getEvent(&event);
+  float fahrenheit = lm75a_sensor.getTemperatureInFahrenheit();
+  String displayMessage = "";
+  
 
-  float celsius = event.temperature;
 
   // Check if any reads failed and exit early (to try again).
-  if (isnan(celsius)) {
+  if (fahrenheit == INVALID_LM75A_TEMPERATURE) {
     return;
   }
  
-  float fahrenheit = (celsius * 1.8) + 32;
 
  // save temperatuere Adafruit IO if have gine up or down by 0.5f
  if (fahrenheit > lastSavedTemperature+0.5 || fahrenheit < lastSavedTemperature-0.5){
@@ -92,20 +74,19 @@ void loop() {
     lastSavedTemperature = fahrenheit;
   }
 
-  // Clear the buffer.
-  display.clearDisplay();
-  display.display();
-  
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-  display.print("Temperature: ");
-  display.print(fahrenheit  );
-  display.println("F");
+  displayMessage = displayMessage + String(fahrenheit);
+  displayMessage = displayMessage + "f";
 
-  display.display(); // actually display all of the above
+  u8g2.clearBuffer();         // clear the internal memory
+  u8g2.setFont(u8g2_font_logisoso32_tf); // choose a suitable font
+  u8g2.setCursor(0, 50);
+  u8g2.print(displayMessage);  // write something to the internal memory
+//  u8g2.setCursor(0, 24);
 
-  delay(2000);
+//  u8g2.print(WiFi.hostname());
+  u8g2.sendBuffer();          // transfer internal memory to the display
+
+  delay(5000);
 
 }
 
